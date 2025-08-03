@@ -82,7 +82,7 @@ TEST(CryptoGuardCtxTest, EncryptDecryptWrongPasswordCheck) {
     EXPECT_NE(outStream.str(), input);
 }
 
-TEST(CryptoGuardCtxTest, InputFailCheck) {
+TEST(CryptoGuardCtxTest, EncryptInputFailCheck) {
     CryptoGuard::CryptoGuardCtx ctx;
     std::string password = "my_secure_password";
     std::string input = "Input Text";
@@ -94,7 +94,7 @@ TEST(CryptoGuardCtxTest, InputFailCheck) {
     EXPECT_THROW(ctx.EncryptFile(inStream, cryptStream, password), std::runtime_error);
 }
 
-TEST(CryptoGuardCtxTest, OutputFailCheck) {
+TEST(CryptoGuardCtxTest, EncryptOutputFailCheck) {
     CryptoGuard::CryptoGuardCtx ctx;
     std::string password = "my_secure_password";
     std::string input = "Input Text";
@@ -104,4 +104,53 @@ TEST(CryptoGuardCtxTest, OutputFailCheck) {
 
     outStream.setstate(std::ios::failbit);
     EXPECT_THROW(ctx.EncryptFile(inStream, outStream, password), std::runtime_error);
+}
+
+TEST(CryptoGuardCtxTest, DecryptInputFailCheck) {
+    CryptoGuard::CryptoGuardCtx ctx;
+    std::string password = "my_secure_password";
+    std::string input = "Input Text";
+    std::stringstream inStream{input};
+    std::stringstream cryptStream{};
+    std::stringstream outStream{};
+
+    inStream.setstate(std::ios::failbit);
+    EXPECT_THROW(ctx.DecryptFile(inStream, cryptStream, password), std::runtime_error);
+}
+
+TEST(CryptoGuardCtxTest, DecryptOutputFailCheck) {
+    CryptoGuard::CryptoGuardCtx ctx;
+    std::string password = "my_secure_password";
+    std::string input = "Input Text";
+    std::stringstream inStream{input};
+    std::stringstream cryptStream{};
+    std::stringstream outStream{};
+
+    outStream.setstate(std::ios::failbit);
+    EXPECT_THROW(ctx.DecryptFile(inStream, outStream, password), std::runtime_error);
+}
+
+TEST(CryptoGuardCtxTest, ChecksumBasicCheck) {
+    CryptoGuard::CryptoGuardCtx ctx;
+    std::string input = "Input Text";
+    std::stringstream inStream{input};
+
+    EXPECT_EQ(ctx.CalculateChecksum(inStream), "28f88397a74b662d610d667d63e198019043dffc341249404787f7ecee599e59");
+}
+
+TEST(CryptoGuardCtxTest, ChecksumInputFailCheck) {
+    CryptoGuard::CryptoGuardCtx ctx;
+    std::string input = "Input Text";
+    std::stringstream inStream{input};
+
+    inStream.setstate(std::ios::failbit);
+    EXPECT_THROW(ctx.CalculateChecksum(inStream), std::runtime_error);
+}
+
+TEST(CryptoGuardCtxTest, ChecksumEmptyInputCheck) {
+    CryptoGuard::CryptoGuardCtx ctx;
+    std::string input = "";
+    std::stringstream inStream{input};
+
+    EXPECT_EQ(ctx.CalculateChecksum(inStream), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 }

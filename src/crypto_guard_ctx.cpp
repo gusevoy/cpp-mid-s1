@@ -2,8 +2,12 @@
 #include "crypto_guard_ctx.h"
 
 #include <boost/scope_exit.hpp>
-#include <istream>
+#include <iomanip>
+#include <ios>
+#include <iostream>
 #include <openssl/evp.h>
+#include <sstream>
+#include <vector>
 
 namespace CryptoGuard {
 
@@ -49,7 +53,40 @@ public:
     }
 
     std::string calculateChecksum(std::iostream& inStream) const {
-        return "NOT IMPLEMENTED";
+        checkStreamHealth(inStream, true);
+        
+        EVP_MD_CTX_Guard ctx{EVP_MD_CTX_new()};
+        if (!ctx) {
+            throw std::runtime_error("Не удалось инициализировать контекст хэширования.");
+        }
+
+        if (!EVP_DigestInit_ex2(ctx.get(), EVP_sha256(), NULL)) {
+            throw std::runtime_error("Не удалось инициализировать хэширование.");
+        }
+
+        std::vector<unsigned char> inBuf(32);
+        std::vector<unsigned char> outBuf(EVP_MAX_MD_SIZE);
+        unsigned int outLen;
+
+        while (inStream) {
+            inStream.read(reinterpret_cast<char *>(inBuf.data()), 32);
+            long charsCount = inStream.gcount();
+
+            if (charsCount > 0) {
+                if (!EVP_DigestUpdate(ctx.get(), inBuf.data(), charsCount)) {
+                    throw std::runtime_error("Ошибка в процессе хэширования.");
+                }
+            }
+        }
+
+        EVP_DigestFinal_ex(ctx.get(), outBuf.data(), &outLen);
+        std::stringstream hashStream{};
+        hashStream << std::hex << std::setfill('0');
+        for (unsigned int i=0; i < outLen; ++i) {
+            hashStream << std::setw(2) << static_cast<int>(outBuf[i]);
+        }
+
+        return hashStream.str();
     }
 
 private:
@@ -69,7 +106,7 @@ private:
         return params;
     }
 
-    void checkStreamHealth(std::iostream& stream, bool isInput) {
+    void checkStreamHealth(std::iostream& stream, bool isInput) const {
         if (!stream.good()) {
             throw std::runtime_error(
                 std::format("Ошибка при работе с {} потоком.", isInput ? "входящим" : "исходящим")
@@ -80,9 +117,6 @@ private:
     void doCrypt(std::iostream& inStream, std::iostream& outStream, AesCipherParams params) {
         if (&inStream == &outStream) {
             throw std::runtime_error("Входящий и исходящий потоки должны отличаться.");
-        }
-        if(!inStream.good() || !outStream.good()) {
-            throw std::runtime_error("Ошибка входящего или исходящего потока.");
         }
         checkStreamHealth(inStream, true);
         checkStreamHealth(outStream, false);
@@ -102,7 +136,6 @@ private:
 
         while (inStream) {
             inStream.read(reinterpret_cast<char *>(inBuf.data()), 16);
-            //checkStreamHealth(inStream, true);
             long charsCount = inStream.gcount();
 
             if (charsCount > 0) {
