@@ -5,8 +5,11 @@
 #include <iomanip>
 #include <ios>
 #include <iostream>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <sstream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace CryptoGuard {
@@ -57,11 +60,11 @@ public:
         
         EVP_MD_CTX_Guard ctx{EVP_MD_CTX_new()};
         if (!ctx) {
-            throw std::runtime_error("Не удалось инициализировать контекст хэширования.");
+            throwOpenSSLError("Не удалось инициализировать контекст хэширования.");
         }
 
         if (!EVP_DigestInit_ex2(ctx.get(), EVP_sha256(), NULL)) {
-            throw std::runtime_error("Не удалось инициализировать хэширование.");
+            throwOpenSSLError("Не удалось инициализировать хэширование.");
         }
 
         std::vector<unsigned char> inBuf(32);
@@ -74,12 +77,14 @@ public:
 
             if (charsCount > 0) {
                 if (!EVP_DigestUpdate(ctx.get(), inBuf.data(), charsCount)) {
-                    throw std::runtime_error("Ошибка в процессе хэширования.");
+                    throwOpenSSLError("Ошибка в процессе хэширования.");
                 }
             }
         }
 
-        EVP_DigestFinal_ex(ctx.get(), outBuf.data(), &outLen);
+        if (!EVP_DigestFinal_ex(ctx.get(), outBuf.data(), &outLen)) {
+            throwOpenSSLError("Ошибка при завершении хэширования.");
+        }
         std::stringstream hashStream{};
         hashStream << std::hex << std::setfill('0');
         for (unsigned int i=0; i < outLen; ++i) {
@@ -123,11 +128,11 @@ private:
         
         EVP_CIPHER_CTX_Guard ctx{EVP_CIPHER_CTX_new()};
         if (!ctx) {
-            throw std::runtime_error("Не удалось инициализировать контекст шифрования.");
+            throwOpenSSLError("Не удалось инициализировать контекст шифрования.");
         }
 
         if (!EVP_CipherInit_ex(ctx.get(), params.cipher, nullptr, params.key.data(), params.iv.data(), params.encrypt)) {
-            throw std::runtime_error("Не удалось инициализировать шифр.");
+            throwOpenSSLError("Не удалось инициализировать шифр.");
         }
 
         std::vector<unsigned char> outBuf(16 + EVP_MAX_BLOCK_LENGTH);
@@ -140,16 +145,26 @@ private:
 
             if (charsCount > 0) {
                 if (!EVP_CipherUpdate(ctx.get(), outBuf.data(), &outLen, inBuf.data(), charsCount)) {
-                    throw std::runtime_error("Ошибка в процессе шифрования.");
+                    throwOpenSSLError("Ошибка в процессе шифрования.");
                 }
                 outStream.write(reinterpret_cast<const char*>(outBuf.data()), outLen);
                 checkStreamHealth(outStream, false);
             }
         }
 
-        EVP_CipherFinal_ex(ctx.get(), outBuf.data(), &outLen);
+        if(!EVP_CipherFinal_ex(ctx.get(), outBuf.data(), &outLen)) {
+            throwOpenSSLError("Ошибка при завершении шифрования.");
+        }
         outStream.write(reinterpret_cast<const char*>(outBuf.data()), outLen);
         checkStreamHealth(outStream, false);
+    }
+
+    void throwOpenSSLError(const std::string& errorMessage) const {
+        unsigned long errorNum = ERR_get_error();
+        std::vector<char> buf(ERR_MAX_DATA_SIZE);
+        ERR_error_string_n(errorNum, buf.data(), buf.size());
+        std::string errorString{buf.data(), buf.size()};
+        throw std::runtime_error(std::format("{}\nOpenSSL {}", errorMessage, errorString));
     }
 };
 

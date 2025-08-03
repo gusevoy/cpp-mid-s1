@@ -78,7 +78,7 @@ TEST(CryptoGuardCtxTest, EncryptDecryptWrongPasswordCheck) {
     std::stringstream outStream{};
 
     EXPECT_NO_THROW(ctx.EncryptFile(inStream, cryptStream, password));
-    EXPECT_NO_THROW(ctx.DecryptFile(cryptStream, outStream, wrong_password));
+    EXPECT_THROW(ctx.DecryptFile(cryptStream, outStream, wrong_password), std::runtime_error);
     EXPECT_NE(outStream.str(), input);
 }
 
