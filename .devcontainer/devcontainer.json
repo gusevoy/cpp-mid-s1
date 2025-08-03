@@ -16,6 +16,6 @@
     }
   },
   "mounts": [
-    "source=${env:HOME}/.gitconfig,target=/etc/gitconfig,type=bind,consistency=cached"
+    "source=C:/Users/Adminko2/.gitconfig,target=/etc/gitconfig,type=bind,consistency=cached"
   ]
 }
